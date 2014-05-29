@@ -1,11 +1,10 @@
 import theano as th
 import theano.tensor as T
 import numpy as np
-import ggplot as gg
 import math
 
-
 class HiddenLayer:
+    
     def __init__(self, inputs, n_inputs, n_outputs,
                  activation = T.tanh,
                  w_init = None,
@@ -15,7 +14,6 @@ class HiddenLayer:
         if w_init is None:
             w_init = np.random.uniform( size = (n_outputs, n_inputs) )
         else:
-            print w_init
             assert w_init.shape == (n_outputs, n_inputs)
             
         if b_init is None:
@@ -56,16 +54,19 @@ class MLP:
         self.output = prev_output
 
         # Functions
-        self.predict = th.function([self.x], self.output)
-        self.loss = T.mean(-self.y * T.log( self.output ) - ( 1 - self.y ) * T.log( 1 - self.output ))
+        self.predict = th.function([self.x], self.output, allow_input_downcast = True)
+        self.loss = T.mean( T.dot(-self.y, T.log( self.output ))
+                            - T.dot(( 1 - self.y ),T.log( 1 - self.output )) )
 
-    def train(self, epochs = 10000, step_size = 0.1, batch_size = 1):
+    def train(self, epochs = 100, step_size = 0.1, batch_size = 1):
         
         grad = [T.grad(self.loss, param) for param in self.params]
         updates = [(param, param - step_size * grad) for param,grad in zip(self.params, grad)]
         SGD = th.function(inputs = [self.x, self.y],
-                       outputs = [self.loss],
-                       updates = updates)
+                          outputs = [self.loss],
+                          updates = updates,
+                          allow_input_downcast = True)
+                          
         
         num_iter = int(math.ceil(self.N*epochs/batch_size))
         for k in range(num_iter):
@@ -74,7 +75,9 @@ class MLP:
             Y_k = self.Y[idx]
             loss = SGD(X_k, Y_k)
 
+            
 if __name__ == '__main__':
+    import time
     # Test the xor gate
     X = np.array([[0,0],
                   [0,1],
@@ -91,8 +94,11 @@ if __name__ == '__main__':
     
     xor_NN = MLP(X, Y, layers = [(2, T.nnet.sigmoid, w_init_HL, b_init_HL),
                                  (1, T.nnet.sigmoid, w_init_O, b_init_O)])
-    xor_NN.train()
 
+    start = time.clock()
+    xor_NN.train(epochs = 10000, batch_size = 4)
+    print 'Training complete. Time elapsed: %.2f' %(time.clock() - start)
+    
     pred = xor_NN.predict(X)
     print pred
         
