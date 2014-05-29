@@ -1,5 +1,6 @@
 import theano as th
 import theano.tensor as T
+from random_sampler import shared_sampler
 import numpy as np
 import math
 
@@ -59,31 +60,35 @@ class MLP:
                             - T.dot(( 1 - self.y ),T.log( 1 - self.output )) )
 
     def train(self, epochs = 100, step_size = 0.1, batch_size = 1):
-        
+        index = T.lscalar()
         grad = [T.grad(self.loss, param) for param in self.params]
         updates = [(param, param - step_size * grad) for param,grad in zip(self.params, grad)]
-        SGD = th.function(inputs = [self.x, self.y],
-                          outputs = [self.loss],
-                          updates = updates,
-                          allow_input_downcast = True)
-                          
         
-        num_iter = int(math.ceil(self.N*epochs/batch_size))
-        for k in range(num_iter):
-            idx = np.random.randint(0, self.N, batch_size)
-            X_k = self.X[idx,:]
-            Y_k = self.Y[idx]
-            loss = SGD(X_k, Y_k)
+        sampler = shared_sampler(self.X, self.Y)
 
+        refresh_iter = math.floor(self.N/batch_size)
+        
+        for epoch in range(epochs):
+            if epoch % 10 == 0 : print 'Epoch %d' %epoch
+            shared_X, shared_Y = sampler.get_order()
+            SGD = th.function(inputs = [index],
+                              outputs = [self.loss],
+                              updates = updates,
+                              givens = {self.x: shared_X[(index * batch_size): ((index + 1) * batch_size)],
+                                        self.y: shared_Y[(index * batch_size): ((index + 1) * batch_size)]},
+                              allow_input_downcast = True)
+
+            for k in range(int(math.floor(self.N/batch_size))):
+                loss = SGD(k)
             
 if __name__ == '__main__':
     import time
     # Test the xor gate
-    X = np.array([[0,0],
-                  [0,1],
-                  [1,0],
-                  [1,1]])
-    Y = np.array([0, 1, 1, 0])
+    X = np.repeat(np.array([[0,0],
+                            [0,1],
+                            [1,0],
+                            [1,1]]), 250, 0)
+    Y = np.repeat(np.array([0, 1, 1, 0]),250)
 
     w_init_HL = np.array([[-.2, .2], [.5, -1.]])
     b_init_HL = np.array([0., .2])
@@ -96,10 +101,15 @@ if __name__ == '__main__':
                                  (1, T.nnet.sigmoid, w_init_O, b_init_O)])
 
     start = time.clock()
-    xor_NN.train(epochs = 10000, batch_size = 4)
+    xor_NN.train(epochs = 50, batch_size = 10)
     print 'Training complete. Time elapsed: %.2f' %(time.clock() - start)
+
+    X_test = np.array([ [0,0],
+                        [0,1],
+                        [1,0],
+                        [1,1] ])
     
-    pred = xor_NN.predict(X)
+    pred = xor_NN.predict(X_test)
     print pred
         
     
