@@ -28,11 +28,11 @@ if torun['logit']:
 # MLP
 if torun['mlp_1']:
     print ' ----- MLP: 784 - 500 - 10 ----- '
-    mnist_MLP = NeuralNet.MLP(xvalid, NeuralNet.compact_2_hotone(yvalid), layers = [(500, T.tanh, None, None),
+    mnist_MLP = NeuralNet.MLP(xtrain, NeuralNet.compact_2_hotone(ytrain), layers = [(500, T.tanh, None, None),
                                                     (10, T.nnet.softmax, None, None)])
 
     start = time.clock()
-    mnist_MLP.train(epochs = 300, step_size = 0.01, batch_size = 250, L2_lambda = 0.0001)
+    mnist_MLP.train(epochs = 1000, step_size = 0.01, batch_size = 20, L2_lambda = 0.0001)
     preds = mnist_MLP.predict(xtest)
     print 'Training complete. Time elapsed: %.2f' %(time.clock() - start)
     print 'Error rate: %.2f' % (1-(float(sum(np.equal(preds,ytest)))/float(len(preds))))
