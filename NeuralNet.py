@@ -45,7 +45,7 @@ class MLP:
         
         self.N,self.m = X.shape
         self.x = T.matrix( 'x' )
-        self.y = T.matrix( 'y' )
+        self.y = T.matrix( 'y' ) 
         
         assert self.K >= 2
         assert self.N == Y.shape[0]
@@ -53,10 +53,15 @@ class MLP:
         self.params = []
         prev_output = self.x
         prev_size = self.m
+
+        self.L1 = 0
+        self.L2 = 0
         
         for size, activation, w_init, b_init in layers:
             H = HiddenLayer(prev_output, prev_size, size, activation, w_init, b_init)
             self.params += [H.w, H.b]
+            self.L1 += T.sum( abs(H.w) )
+            self.L2 += T.sum( H.w ** 2 )
             prev_output = H.output
             prev_size = size
 
@@ -65,16 +70,22 @@ class MLP:
         # Functions
         self.predict = th.function([self.x], T.argmax( self.output , axis = 1 ), allow_input_downcast = True)
 #        self.predict = th.function([self.x], self.output, allow_input_downcast = True)
-        self.loss = - T.mean( self.output * self.y )
 
-    def train(self, epochs = 100, step_size = 0.1, batch_size = 1):
+
+    def train(self,
+              epochs = 100,
+              step_size = 0.1,
+              batch_size = 1,
+              L1_lambda= 0,
+              L2_lambda = 0):
+        
         index = T.lscalar()
+
+        self.loss = - T.mean( self.output * self.y ) + L1_lambda * self.L1 + L2_lambda * self.L2
         grad = [T.grad(self.loss, param) for param in self.params]
         updates = [(param, param - step_size * grad) for param,grad in zip(self.params, grad)]
         
         sampler = shared_sampler(self.X, self.Y)
-
-        refresh_iter = math.floor(self.N/batch_size)
         
         for epoch in range(epochs):
             if epoch % 10 == 0 : print 'Epoch %d' %epoch
