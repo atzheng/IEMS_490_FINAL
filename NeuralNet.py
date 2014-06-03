@@ -71,7 +71,12 @@ class NeuralNet:
         self.init_layers(layers, n_in, n_out, output_layer_args)
 
         # Initialize the optimizer
-        self.loss = error_fn(self.output_layer.output, self.y) + L1_reg * self.L1 + L2_reg * self.L2_sqr
+        self.loss = error_fn(self.output_layer.output, self.y)
+        if L1_reg != 0:
+            self.loss += L1_reg * self.L1
+        if L2_reg != 0:
+            self.loss += L2_reg * self.L2_sqr
+            
         self.predict = None
 
     def init_layers(self, layers, n_in, n_out, output_layer_args):
@@ -111,3 +116,7 @@ class NeuralNet:
         self.L1 = L1 + T.sum( abs( self.output_layer.W ))
         self.L2_sqr = L2_sqr + T.sum( self.output_layer.W ** 2 )
 
+    def validation_error(self, x_valid, y_valid):
+        assert False
+
+        

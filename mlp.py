@@ -36,6 +36,8 @@ class MLP(NN.NeuralNet):
         self.predict = th.function([self.x],
                                        T.argmax( self.output_layer.output , axis = 1),
                                        allow_input_downcast = True)
+    def validation_error(self, x_valid, y_valid):
+        return 100*np.mean(self.predict(x_valid) != y_valid)
 
 if __name__ == '__main__':
     from NeuralNet import LayerData

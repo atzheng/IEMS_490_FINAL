@@ -8,7 +8,7 @@ def negative_log_likelihood(output, y):
     return -T.mean(T.log(output)[T.arange(y.shape[0]), y])
 
 def reconstruction_xentropy(output, x):
-    return T.mean( T.log( output ) * T.x + T.log( 1 - output ) * (1 - T.x))
+    return T.mean( - T.sum( x * T.log( output ) + (1 - x) * T.log( 1 - output ), axis = 1))
 
 # ----- OPTIMIZERS -----
         
@@ -25,7 +25,10 @@ def gradient_descent(NN,
     # Load data
     x_shared = th.shared(np.asarray(x_train, dtype = th.config.floatX),
                            borrow = True)
-    y_shared = T.cast(th.shared(np.asarray(y_train, dtype = th.config.floatX),
+    if x_train is y_train:
+        y_shared = x_shared
+    else:
+        y_shared = T.cast(th.shared(np.asarray(y_train, dtype = th.config.floatX),
                                   borrow = True),
                     'int32')
 
@@ -43,14 +46,18 @@ def gradient_descent(NN,
                 NN.y: y_shared[index * batch_size:(index + 1) * batch_size]})
 
     # Backpropagate
+    loss = float('Inf')
     for epoch in range(n_epochs):
         if (x_valid is not None
-            and y_valid is not None
-            and NN.predict is not None):
+            and y_valid is not None):
             print('Epoch %i: Validation Error %f %%'
-                   % (epoch, 100*np.mean(NN.predict(x_valid) != y_valid)))
+                    % (epoch, NN.validation_error(x_valid, y_valid)))
+            print('Epoch %i: Loss %f' %(epoch, loss))
+            
+
         for minibatch_index in xrange(n_train_batches):
             loss = backpropagate(minibatch_index)
+            
 
 
 
