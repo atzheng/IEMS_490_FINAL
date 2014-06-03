@@ -12,9 +12,14 @@ import numpy
 import theano
 import theano.tensor as T
 
+from logistic_sgd import load_data
 
-from logistic_sgd import LogisticRegression, load_data
-
+class LayerData:
+    def __init__(self, n_out, W= None, b= None, activation = T.tanh):
+        self.n_out = n_out
+        self.W = W
+        self.b = b
+        self.activation = activation
 
 class HiddenLayer(object):
     def __init__(self,input, rng, n_in, n_out, W=None, b=None,
@@ -74,51 +79,58 @@ class HiddenLayer(object):
 
 
 class MLP(object):
-    def __init__(self, n_in, n_hidden, n_out, rng = numpy.random.RandomState(1234)):
+    def __init__(self, n_in, n_out, layers, rng = numpy.random.RandomState(1234)):
 
         self.x = T.matrix('x')  # the data is presented as rasterized images
         self.y = T.ivector('y')  # the labels are presented as 1D vector of
                             # [int] labels
         self.rng = rng
+        self.init_layers(layers, n_in, n_out)
 
-        self.hiddenLayer = HiddenLayer(rng=self.rng, input=self.x,
-                                       n_in=n_in, n_out=n_hidden,
-                                       activation=T.tanh)
+        self.negative_log_likelihood = self.output_layer.negative_log_likelihood
+        self.errors = self.output_layer.errors
 
-        self.logRegressionLayer = HiddenLayer(
-            input=self.hiddenLayer.output,
+    def init_layers(self, layers, n_in, n_out):
+
+        L1 = 0
+        L2_sqr = 0
+
+        self.params = []
+        prev_output = self.x
+        prev_size = n_in
+        
+        for layer_arg in layers:
+            H = HiddenLayer(input = prev_output,
+                            rng = self.rng,
+                            n_in = prev_size,
+                            n_out = layer_arg.n_out,
+                            W = layer_arg.W,
+                            b = layer_arg.b,
+                            activation = layer_arg.activation)
+
+            self.params += [H.W,H.b]
+            L1 += T.sum(abs(H.W))
+            L2_sqr += T.sum(H.W ** 2)
+            prev_output = H.output
+            prev_size = layer_arg.n_out
+
+
+        self.output_layer = HiddenLayer(
+            input=prev_output,
             rng = self.rng,
-            n_in=n_hidden,
+            n_in= prev_size,
             n_out=n_out,
             activation = T.nnet.softmax,
-            W = theano.shared(value=numpy.zeros((n_hidden,n_out),
+            W = theano.shared(value=numpy.zeros((prev_size,n_out),
                                                  dtype=theano.config.floatX),
                                 name='W', borrow=True))
         
-        # L1 norm ; one regularization option is to enforce L1 norm to
-        # be small
-        self.L1 = abs(self.hiddenLayer.W).sum() \
-                + abs(self.logRegressionLayer.W).sum()
+        self.L1 = L1 + T.sum( abs( self.output_layer.W ))
+        self.L2_sqr = L2_sqr + T.sum( self.output_layer.W ** 2 )
 
-        # square of L2 norm ; one regularization option is to enforce
-        # square of L2 norm to be small
-        self.L2_sqr = (self.hiddenLayer.W ** 2).sum() \
-                    + (self.logRegressionLayer.W ** 2).sum()
+        self.params += [self.output_layer.W, self.output_layer.b]
 
-        # negative log likelihood of the MLP is given by the negative
-        # log likelihood of the output of the model, computed in the
-        # logistic regression layer
-        self.negative_log_likelihood = self.logRegressionLayer.negative_log_likelihood
-        # same holds for the function computing the number of errors
-        self.errors = self.logRegressionLayer.errors
-
-        # the parameters of the model are the parameters of the two layer it is
-        # made out of
-        self.params = self.hiddenLayer.params + self.logRegressionLayer.params
-
-
-
-    def train(self, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1000,
+    def train(self, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0000, n_epochs=1000,
                  dataset='mnist.pkl.gz', batch_size=20, n_hidden=500):
         datasets = load_data(dataset)
 
@@ -136,7 +148,6 @@ class MLP(object):
         cost = self.negative_log_likelihood(self.y) \
          + L1_reg * self.L1 \
          + L2_reg * self.L2_sqr
-
          
         test_model = theano.function(inputs=[index],
                 outputs=self.errors(self.y),
@@ -206,7 +217,9 @@ def test_mlp(learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1000,
     print '... building the model'
 
     classifier = MLP( n_in=28 * 28,
-                     n_hidden=n_hidden, n_out=10)
+                      n_out=10,
+                      layers = [LayerData(n_out=n_hidden, activation=T.tanh)])
+
 
     print '... training'
     classifier.train(learning_rate, L1_reg, L2_reg, n_epochs, dataset, batch_size, n_hidden)
