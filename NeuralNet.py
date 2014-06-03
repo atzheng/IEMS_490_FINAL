@@ -1,165 +1,113 @@
+import numpy as np
 import theano as th
 import theano.tensor as T
 
-import numpy as np
-import math
-
-class HiddenLayer:
-    
-    def __init__(self, inputs, n_inputs, n_outputs,
-                 activation = T.tanh,
-                 w_init = None,
-                 b_init = None
-                 ):
-
-        if w_init is None:
-
-            w_init = np.asarray(np.random.uniform( low=-np.sqrt(6. / (n_inputs + n_outputs)),
-                                                        high=np.sqrt(6. / (n_inputs + n_outputs)),
-                                                        size=(n_outputs, n_inputs)), dtype=th.config.floatX)
-            
-
-        else:
-            assert w_init.shape == (n_outputs, n_inputs)
-        if b_init is None:
-            b_init = np.zeros((n_outputs,), dtype = th.config.floatX)
-        else:
-            assert b_init.shape == (n_outputs,)
-            
-        self.w = th.shared( w_init, 'w' , borrow = True)
-        self.b = th.shared( b_init, 'b' , borrow = True)
-
-        self.n_in = n_inputs
-        self.n_out = n_outputs
+class LayerData:
+    def __init__(self, n_out, W= None, b= None, activation = T.tanh):
+        self.n_out = n_out
+        self.W = W
+        self.b = b
         self.activation = activation
-        self.inputs = inputs
 
-        self.output = self.activation( T.dot(self.inputs, self.w.T) + self.b )
+class HiddenLayer(object):
+    def __init__(self,input, rng, n_in, n_out, W=None, b=None,
+                 activation=T.tanh):
+        self.input = input
 
-class MLP:
-    def __init__(self, X, Y, layers):
+        self.W = self.init_W(W,n_in,n_out,rng,activation)
+        self.b = self.init_b(b,n_out)
 
-        self.X = X
-        self.Y = compact_2_hotone(Y)
-        self.K = self.Y.shape[1]
-        
-        self.N,self.m = X.shape
-        self.x = T.matrix( 'x' )
-        self.y = T.matrix( 'y' ) 
-        
-        assert self.K >= 2
-        assert self.N == Y.shape[0]
-        
+        self.output = self.determine_output(input,activation)
+
+        self.y_pred = T.argmax(self.output, axis=1)
+
+        self.params = [self.W, self.b]
+
+    def init_W(self, W, n_in, n_out, rng, activation):
+        if W is None:
+            random_arr = rng.uniform(
+                low=-np.sqrt(6. / (n_in + n_out)),
+                high=np.sqrt(6. / (n_in + n_out)),
+                size=(n_in, n_out))
+            W_values = np.asarray(random_arr, dtype=th.config.floatX)
+            if activation == th.tensor.nnet.sigmoid:
+                W_values *= 4
+        else:
+            W_values = W
+        W = th.shared(value=W_values, name='W', borrow=True)
+        return W
+
+    def init_b(self, b, n_out):
+        if b is None:
+            b_values = np.zeros((n_out,), dtype=th.config.floatX)
+        else:
+            b_values = b
+        b = th.shared(value=b_values, name='b', borrow=True)
+        return b
+
+    def determine_output(self,input,activation):
+        lin_output = T.dot(input, self.W) + self.b
+        return (lin_output if activation is None else activation(lin_output))
+
+class NeuralNet:
+    def __init__(self,
+                 n_in,
+                 n_out,
+                 layers,
+                 output_layer_args,
+                 error_fn,
+                 L1_reg = 0.,
+                 L2_reg = 0.,
+                 input = None,
+                 output = None,
+                 rng = np.random.RandomState(1234)):
+
+        # Initialize variables
+        self.x = (input if input is not None
+                  else T.matrix('x'))
+        self.y = (output if output is not None
+                  else T.ivector('y'))
+        self.rng = rng
+        self.init_layers(layers, n_in, n_out, output_layer_args)
+
+        # Initialize the optimizer
+        self.loss = error_fn(self.output_layer.output, self.y) + L1_reg * self.L1 + L2_reg * self.L2_sqr
+        self.predict = None
+
+    def init_layers(self, layers, n_in, n_out, output_layer_args):
+        L1 = 0
+        L2_sqr = 0
+
         self.params = []
         prev_output = self.x
-        prev_size = self.m
-
-        self.L1 = 0
-        self.L2 = 0
+        prev_size = n_in
         
-        for size, activation, w_init, b_init in layers:
-            H = HiddenLayer(prev_output, prev_size, size, activation, w_init, b_init)
-            self.params += [H.w, H.b]
-            self.L1 += T.sum( abs(H.w) )
-            self.L2 += T.sum( H.w ** 2 )
+        for layer_arg in layers:
+            H = HiddenLayer(input = prev_output,
+                            rng = self.rng,
+                            n_in = prev_size,
+                            n_out = layer_arg.n_out,
+                            W = layer_arg.W,
+                            b = layer_arg.b,
+                            activation = layer_arg.activation)
+
+            self.params += [H.W,H.b]
+            L1 += T.sum(abs(H.W))
+            L2_sqr += T.sum(H.W ** 2)
             prev_output = H.output
-            prev_size = size
+            prev_size = layer_arg.n_out
 
-        self.output = prev_output
-
-        # Functions
-        self.predict = th.function([self.x], T.argmax( self.output , axis = 1 ), allow_input_downcast = True)
-        self.activation_val = th.function([self.x], self.output, allow_input_downcast = True)
-#        self.predict = th.function([self.x], self.output, allow_input_downcast = True)
-
-
-    def train(self,
-              epochs = 100,
-              step_size = 0.1,
-              batch_size = 1,
-              L1_lambda= 0,
-              L2_lambda = 0,
-              X_valid = None,
-              Y_valid = None):
+        self.output_layer = HiddenLayer(
+            input=prev_output,
+            rng = self.rng,
+            n_in= prev_size,
+            n_out = output_layer_args.n_out,
+            activation = output_layer_args.activation,
+            W =  (output_layer_args.W if output_layer_args.W is not None
+                  else np.zeros((prev_size,n_out), dtype=th.config.floatX)),
+            b = output_layer_args.b)
         
-        index = T.lscalar()
+        self.params += [self.output_layer.W, self.output_layer.b]
+        self.L1 = L1 + T.sum( abs( self.output_layer.W ))
+        self.L2_sqr = L2_sqr + T.sum( self.output_layer.W ** 2 )
 
-        self.loss = - T.mean( T.log(self.output) * self.y ) + L1_lambda * self.L1 + L2_lambda * self.L2
-
-        print ' - Loss function : '
-        th.printing.pprint(self.loss)
-        th.printing.debugprint(self.loss)
-        th.printing.pydotprint_variables(self.loss)
-        
-        grad = [T.grad(self.loss, param) for param in self.params]
-        updates = [(param, param - step_size * grad) for param,grad in zip(self.params, grad)]
-        
-        shared_x = th.shared(np.asarray(self.X,
-                                dtype=th.config.floatX),
-                                borrow= True)
-
-        shared_y = th.shared(np.asarray(self.Y,
-                                dtype=th.config.floatX),
-                                borrow = True)
-
-        SGD = th.function(inputs = [index],
-                            outputs = [self.loss],
-                            updates = updates,
-                            givens = {self.x: shared_x[(index * batch_size): ((index + 1) * batch_size)],
-                            self.y: shared_y[(index * batch_size): ((index + 1) * batch_size)]},
-                            allow_input_downcast = True)
-        
-        batches_per_epoch = int(math.floor(self.N/batch_size))
-        print ' %%% TRAINING MODEL %%% '
-        print ' Batch size : %d' %batch_size
-        print ' Batches per epoch : %d' %batches_per_epoch
-        for epoch in range(epochs):
-            for k in range(batches_per_epoch):
-                loss = SGD(k)
-                if k % np.floor(batches_per_epoch/4)  == 0 and X_valid is not None and Y_valid is not None:
-                    valid_error = 100*(1 - float(sum(self.predict(X_valid) == Y_valid))/float(X_valid.shape[0]))
-                    print 'Epoch %d/%d ; Batch %d/%d: Validation Error %.6f%%'  %(epoch, epochs, k + 1, batches_per_epoch, valid_error)
-
-
-def compact_2_hotone(Y):
-    # Assumes that Y is a vector of max(Y) numbered classes
-    Y_hotone = np.zeros(shape = (len(Y), max(Y) + 1))
-    Y_hotone[range(len(Y)),Y] = 1
-    return Y_hotone
-            
-if __name__ == '__main__':
-    import time
-    # Test the xor gate
-    X = np.repeat(np.array([[0,0],
-                            [0,1],
-                            [1,0],
-                            [1,1]]), 250, 0)
-    Y = np.repeat(np.array([0, 1, 1, 0]),250)
-
-    w_init_HL = np.array([[-.2, .2], [.5, -1.]])
-    b_init_HL = np.array([0., .2])
-    
-    w_init_O = np.array([[.1,1.],[-.1,-1.]])
-
-    b_init_O = np.array([-.1, -.1])
-    
-    xor_NN = MLP(X, Y, layers = [(2, T.nnet.sigmoid, w_init_HL, b_init_HL),
-                                 (2, T.nnet.softmax, w_init_O, b_init_O)])
-    # xor_NN = MLP(X, Y, layers = [(2, T.tanh, None, None),
-    #                              (2, T.nnet.softmax, None, None)])
-
-    start = time.clock()
-    xor_NN.train(epochs = 50, batch_size = 1)
-    print 'Training complete. Time elapsed: %.2f' %(time.clock() - start)
-
-    X_test = np.array([ [0,0],
-                        [0,1],
-                        [1,0],
-                        [1,1] ])
-    
-    pred = xor_NN.predict(X_test)
-    print 'Predictions:'
-    print pred
-        
-    
-    
