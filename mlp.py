@@ -1,7 +1,7 @@
 __docformat__ = 'restructedtext en'
 
 
-import cPickle
+import cPickle as Pickle
 import gzip
 import os
 import sys
@@ -11,8 +11,6 @@ import numpy
 
 import theano
 import theano.tensor as T
-
-from logistic_sgd import load_data
 
 class LayerData:
     def __init__(self, n_out, W= None, b= None, activation = T.tanh):
@@ -48,8 +46,7 @@ class HiddenLayer(object):
                        else activation(lin_output))
 
         self.y_pred = T.argmax(self.output, axis=1)
-        
-        # parameters of the model
+
         self.params = [self.W, self.b]
 
 class MLP(object):
@@ -106,14 +103,25 @@ class MLP(object):
 
         self.params += [self.output_layer.W, self.output_layer.b]
 
-    def train(self, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0000, n_epochs=1000,
-                 dataset='mnist.pkl.gz', batch_size=20, n_hidden=500):
-        
-        [(train_set_x, train_set_y),
-         (valid_set_x, valid_set_y),
-         (test_set_x , test_set_y )] = load_data(dataset)
+    def train(self,
+              x,
+              y,
+              learning_rate=0.01,
+              L1_reg=0.00,
+              L2_reg=0.0000,
+              n_epochs=1000,
+              batch_size=20,
+              xvalid = None,
+              yvalid = None):
 
-        n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
+        xtrain = theano.shared(numpy.asarray(x, dtype = theano.config.floatX),
+                               borrow = True)
+
+        ytrain = T.cast(theano.shared(numpy.asarray(y, dtype = theano.config.floatX),
+                                      borrow = True),
+                        'int32')
+
+        n_train_batches = xtrain.get_value(borrow=True).shape[0] / batch_size
         index = T.lscalar()
 
         cost = self.negative_log_likelihood + L1_reg * self.L1 + L2_reg * self.L2_sqr
@@ -124,41 +132,43 @@ class MLP(object):
         train_model = theano.function(inputs=[index], outputs=cost,
                 updates=updates,
                 givens={
-                    self.x: train_set_x[index * batch_size:(index + 1) * batch_size],
-                    self.y: train_set_y[index * batch_size:(index + 1) * batch_size]})
-
-        validation_frequency = n_train_batches
+                    self.x: xtrain[index * batch_size:(index + 1) * batch_size],
+                    self.y: ytrain[index * batch_size:(index + 1) * batch_size]})
 
         for epoch in range(n_epochs):
+            if xvalid is not None and yvalid is not None:
+                print('Epoch %i: Validation Error %f %%'
+                       % (epoch, 100*numpy.mean(self.predict(xvalid) != yvalid)))
             for minibatch_index in xrange(n_train_batches):
-                minibatch_avg_cost = train_model(minibatch_index)
-
-                iter = (epoch - 1) * n_train_batches + minibatch_index
-                if (iter + 1) % validation_frequency == 0:
-                    print('epoch %i, minibatch %i/%i, validation error %f %%' %
-                         (epoch, minibatch_index + 1, n_train_batches,
-                          100*numpy.mean(self.predict(valid_set_x) != valid_set_y)))
+                loss = train_model(minibatch_index)
 
 if __name__ == '__main__':
 
-    learning_rate=0.01
-    L1_reg=0.00
-    L2_reg=0.0001
-    n_epochs=1000
-    dataset='mnist.pkl.gz'
-    batch_size=20
-    n_hidden=500
-    
+    learning_rate = 0.01
+    L1_reg = 0.00
+    L2_reg = 0.0001
+    n_epochs = 70
+    dataset = 'mnist.pkl.gz'
+    batch_size = 20
+    n_hidden = 500
+
+    (xtrain,ytrain), (xvalid,yvalid), (xtest, ytest) = Pickle.load(open('mnist.pkl'))
     print '... building the model'
 
     classifier = MLP( n_in=28 * 28,
                       n_out=10,
                       layers = [LayerData(n_out=n_hidden, activation=T.tanh)])
 
-
     print '... training'
     start = time.clock()
-    classifier.train(learning_rate, L1_reg, L2_reg, n_epochs, dataset, batch_size, n_hidden)
-    
+    classifier.train(x = xtrain,
+                     y = ytrain,
+                     learning_rate = learning_rate,
+                     L1_reg = L1_reg,
+                     L2_reg = L2_reg,
+                     n_epochs = n_epochs,
+                     batch_size = batch_size,
+                     xvalid = xvalid,
+                     yvalid = yvalid)
 
     test_mlp()
