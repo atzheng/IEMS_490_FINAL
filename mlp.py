@@ -24,11 +24,9 @@ class HiddenLayer(object):
         self.input = input
 
         self.W = self.init_W(W,n_in,n_out,rng,activation)
-        self.b = self.init_b(n_out)
+        self.b = self.init_b(b,n_out)
 
-        lin_output = T.dot(input, self.W) + self.b
-        self.output = (lin_output if activation is None
-                       else activation(lin_output))
+        self.output = self.determine_output(input,activation)
 
         self.y_pred = T.argmax(self.output, axis=1)
 
@@ -46,15 +44,18 @@ class HiddenLayer(object):
             W = th.shared(value=W_values, name='W', borrow=True)
         return W
 
-    def init_b(self, n_out):
+    def init_b(self, b, n_out):
         if b is None:
             b_values = np.zeros((n_out,), dtype=th.config.floatX)
             b = th.shared(value=b_values, name='b', borrow=True)
         return b
 
+    def determine_output(self,input,activation):
+        lin_output = T.dot(input, self.W) + self.b
+        return (lin_output if activation is None else activation(lin_output))
+
 class MLP(object):
     def __init__(self, n_in, n_out, layers, rng = np.random.RandomState(1234)):
-
         self.x = T.matrix('x')
         self.y = T.ivector('y')
 
