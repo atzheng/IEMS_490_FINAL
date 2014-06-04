@@ -17,7 +17,8 @@ class MLP(NN.NeuralNet):
                  layers,
                  L1_reg = 0.,
                  L2_reg = 0.,
-                 input = None
+                 input = None, 
+                 inputx = None,
                  rng = np.random.RandomState(1234)):
 
         output_layer_args = NN.LayerData(
@@ -33,11 +34,14 @@ class MLP(NN.NeuralNet):
                            L1_reg = L1_reg,
                            L2_reg = L2_reg,
                            input = input,
+                           inputx = inputx,
                            rng = rng)
         
         self.predict = th.function([self.x],
                                        T.argmax( self.output_layer.output , axis = 1),
                                        allow_input_downcast = True)
+
+        th.printing.pydotprint(self.predict)
         
     def validation_error(self, x_valid, y_valid):
         return 100*np.mean(self.predict(x_valid) != y_valid)
