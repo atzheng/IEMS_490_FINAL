@@ -55,14 +55,19 @@ class NeuralNet:
                  L1_reg = 0.,
                  L2_reg = 0.,
                  input = None,
+                 inputx = None,
                  output = None,
                  rng = np.random.RandomState(1234)):
 
         # Initialize variables
-        self.x = (input if input is not None
+        self.x = (inputx if inputx is not None
                   else T.matrix('x'))
         self.y = (output if output is not None
                   else T.ivector('y'))
+        self.input = (input if input is not None
+                  else self.x)
+
+        
         self.rng = rng
         self.init_layers(layers, n_in, n_out, output_layer_args)
 
@@ -80,7 +85,7 @@ class NeuralNet:
         L2_sqr = 0
 
         self.params = []
-        prev_output = self.x
+        prev_output = self.input
         prev_size = n_in
         
         for layer_arg in layers:
