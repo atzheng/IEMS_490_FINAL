@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     params = [(learning_rate, batch_size) for learning_rate in learning_rates for batch_size in batch_sizes]
     results = {}
-    for i,(learning_rates, batch_size) in enumerate(params):
+    for i,(learning_rate, batch_size) in enumerate(params):
         mlp500 = mlp.MLP(n_in = 784,
                             n_out = 10,
                             layers = [NN.LayerData(200)])
@@ -57,7 +57,8 @@ if __name__ == '__main__':
                                                                     n_epochs = n_epochs,
                                                                     x_valid = x_valid,
                                                                     y_valid = y_valid)
-        Pickle.dump(results, open('results_200.pkl','ab'))
+    
+    Pickle.dump(results, open('results_200.pkl','wb'))
 
     # Compare training across different learning rates and batch sizes
   
