@@ -17,9 +17,10 @@ class MLP(NN.NeuralNet):
                  layers,
                  L1_reg = 0.,
                  L2_reg = 0.,
+                 input = None
                  rng = np.random.RandomState(1234)):
 
-        output_layer_args = LayerData(
+        output_layer_args = NN.LayerData(
                             n_out = n_out,
                             activation = T.nnet.softmax)
 
@@ -31,6 +32,7 @@ class MLP(NN.NeuralNet):
                            error_fn = opt.negative_log_likelihood,
                            L1_reg = L1_reg,
                            L2_reg = L2_reg,
+                           input = input,
                            rng = rng)
         
         self.predict = th.function([self.x],
