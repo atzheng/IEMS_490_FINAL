@@ -33,8 +33,9 @@ def gradient_descent(NN,
                     'int32')
 
     # Initialize gradient descent function
-    n_train_batches = x_shared.get_value(borrow=True).shape[0] / batch_size
-    index = T.lscalar()
+    N = x_shared.get_value(borrow=True).shape[0]
+    n_train_batches =  N / batch_size
+    index = T.lscalar() 
 
     gparams = [T.grad(NN.loss,param) for param in NN.params]
     updates = [(param, param - learning_rate * gparam) for param,gparam in zip(NN.params,gparams)]
@@ -46,19 +47,29 @@ def gradient_descent(NN,
                 NN.y: y_shared[index * batch_size:(index + 1) * batch_size]})
 
     # Backpropagate
-    loss = float('Inf')
+    loss = 0
+    loss_history = []
+    valid_history = []
+    valid_freq = 1000
+    
     for epoch in range(n_epochs):
         if (x_valid is not None
             and y_valid is not None):
+            valid_error = NN.validation_error(x_valid, y_valid)
             print('Epoch %i: Validation Error %f %%'
-                    % (epoch, NN.validation_error(x_valid, y_valid)))
+                    % (epoch, valid_error))
             print('Epoch %i: Loss %f' %(epoch, loss))
-            
 
         for minibatch_index in xrange(n_train_batches):
             loss = backpropagate(minibatch_index)
-            
-
+            if (x_valid is not None
+                and y_valid is not None
+                and minibatch_index*batch_size % valid_freq == 0):
+                
+                valid_error = NN.validation_error(x_valid, y_valid)
+                loss_history.append(loss)
+                valid_history.append(valid_error)
+    return (valid_history, loss_history)
 
 
 

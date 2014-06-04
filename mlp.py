@@ -36,6 +36,7 @@ class MLP(NN.NeuralNet):
         self.predict = th.function([self.x],
                                        T.argmax( self.output_layer.output , axis = 1),
                                        allow_input_downcast = True)
+        
     def validation_error(self, x_valid, y_valid):
         return 100*np.mean(self.predict(x_valid) != y_valid)
 
@@ -47,7 +48,7 @@ if __name__ == '__main__':
     learning_rate = 0.01
     L1_reg = 0.00
     L2_reg = 0.0001
-    n_epochs = 70
+    n_epochs = 2
     dataset = 'mnist.pkl.gz'
     batch_size = 20
     n_hidden = 500
@@ -73,4 +74,3 @@ if __name__ == '__main__':
                          x_valid = xvalid,
                          y_valid = yvalid)
 
-    test_mlp()

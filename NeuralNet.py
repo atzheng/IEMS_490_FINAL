@@ -32,17 +32,13 @@ class HiddenLayer(object):
             W_values = np.asarray(random_arr, dtype=th.config.floatX)
             if activation == th.tensor.nnet.sigmoid:
                 W_values *= 4
-        else:
-            W_values = W
-        W = th.shared(value=W_values, name='W', borrow=True)
+            W = th.shared(value=W_values, name='W', borrow=True)
         return W
 
     def init_b(self, b, n_out):
         if b is None:
             b_values = np.zeros((n_out,), dtype=th.config.floatX)
-        else:
-            b_values = b
-        b = th.shared(value=b_values, name='b', borrow=True)
+            b = th.shared(value=b_values, name='b', borrow=True)
         return b
 
     def determine_output(self,input,activation):
@@ -96,7 +92,11 @@ class NeuralNet:
                             b = layer_arg.b,
                             activation = layer_arg.activation)
 
-            self.params += [H.W,H.b]
+            if H.W not in self.params:
+                self.params.append(H.W)
+            if H.b not in self.params:
+                self.params.append(H.b)
+
             L1 += T.sum(abs(H.W))
             L2_sqr += T.sum(H.W ** 2)
             prev_output = H.output
@@ -109,13 +109,16 @@ class NeuralNet:
             n_out = output_layer_args.n_out,
             activation = output_layer_args.activation,
             W =  (output_layer_args.W if output_layer_args.W is not None
-                  else np.zeros((prev_size,n_out), dtype=th.config.floatX)),
+                  else th.shared(np.zeros((prev_size,n_out), dtype=th.config.floatX), borrow = True)),
             b = output_layer_args.b)
+
+        if self.output_layer.W not in self.params:
+            self.params.append(self.output_layer.W)
+        if self.output_layer.b not in self.params:
+            self.params.append(self.output_layer.b)
         
-        self.params += [self.output_layer.W, self.output_layer.b]
         self.L1 = L1 + T.sum( abs( self.output_layer.W ))
         self.L2_sqr = L2_sqr + T.sum( self.output_layer.W ** 2 )
-
     def validation_error(self, x_valid, y_valid):
         assert False
 
