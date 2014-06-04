@@ -29,16 +29,17 @@ if __name__ == '__main__':
 
     # ---- Define experimental architectures -----
     # architectures = [
+    #     [NN.LayerData(40)],
     #     [NN.LayerData(200)],
     #     [NN.LayerData(200), NN.LayerData(200)],
     #     [NN.LayerData(500)],
-    #     [NN.LayerData(500), NN.LayerData(500)],
+    #     [NN.LayerData(500), NN.LayerData(50)],
     #     [NN.LayerData(397)]
     #     [NN.LayerData(397), NN.LayerData(203)]]
 
     # ---- Choose experimental learning rates -----
-    learning_rates = [1,0.1,0.01,0.001]
-    batch_sizes    = [50000, 20000, 10000, 1000, 100, 10, 1]
+    learning_rates = [0.1, 0.01, 0.001]
+    batch_sizes    = [10000, 1000, 100, 10]
     n_epochs       = 100
 
     params = [(learning_rate, batch_size) for learning_rate in learning_rates for batch_size in batch_sizes]
@@ -46,7 +47,7 @@ if __name__ == '__main__':
     for i,(learning_rates, batch_size) in enumerate(params):
         mlp500 = mlp.MLP(n_in = 784,
                             n_out = 10,
-                            layers = [NN.LayerData(500)])
+                            layers = [NN.LayerData(200)])
         print 'Training %d/%d parameter sets' %(i, len(params))
         results[(learning_rate, batch_size)] = opt.gradient_descent(mlp500,
                                                                     x_train = x_train,
@@ -56,11 +57,9 @@ if __name__ == '__main__':
                                                                     n_epochs = n_epochs,
                                                                     x_valid = x_valid,
                                                                     y_valid = y_valid)
-
-    import pdb; pdb.set_trace()
-    Pickle.dump(results, open('results.pkl','wb'))
+        Pickle.dump(results, open('results_200.pkl','ab'))
 
     # Compare training across different learning rates and batch sizes
-    learning_rat
+  
 
 

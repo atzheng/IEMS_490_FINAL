@@ -59,16 +59,12 @@ def gradient_descent(NN,
             print('Epoch %i: Validation Error %f %%'
                     % (epoch, valid_error))
             print('Epoch %i: Loss %f' %(epoch, loss))
+            loss_history.append(loss)
+            valid_history.append(valid_error)
 
         for minibatch_index in xrange(n_train_batches):
             loss = backpropagate(minibatch_index)
-            if (x_valid is not None
-                and y_valid is not None
-                and minibatch_index*batch_size % valid_freq == 0):
                 
-                valid_error = NN.validation_error(x_valid, y_valid)
-                loss_history.append(loss)
-                valid_history.append(valid_error)
     return (valid_history, loss_history)
 
 
