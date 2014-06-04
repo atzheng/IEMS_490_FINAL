@@ -3,6 +3,9 @@ import theano as th
 import theano.tensor as T
 
 class LayerData:
+    '''
+    Used to specify a layer in arguments to a neural net
+    '''
     def __init__(self, n_out, W= None, b= None, activation = T.tanh):
         self.n_out = n_out
         self.W = W
@@ -10,8 +13,21 @@ class LayerData:
         self.activation = activation
 
 class HiddenLayer(object):
+    '''
+    Generic layer class for a neural network.
+    '''
     def __init__(self,input, rng, n_in, n_out, W=None, b=None,
                  activation=T.tanh):
+        '''
+        input   : output of previous layer
+        rng     : random number generator
+        n_in    : number of input nodes
+        n_out   : number of nodes in layer
+        W       : initial weights for W
+        b       : initiali weights for b
+        activation : specify an activation function
+        '''
+        
         self.input = input
 
         self.W = self.init_W(W,n_in,n_out,rng,activation)
@@ -46,6 +62,9 @@ class HiddenLayer(object):
         return (lin_output if activation is None else activation(lin_output))
 
 class NeuralNet:
+    '''
+    Generic neural network class. Initializes layers and loss function.
+    '''
     def __init__(self,
                  n_in,
                  n_out,
@@ -58,7 +77,20 @@ class NeuralNet:
                  inputx = None,
                  output = None,
                  rng = np.random.RandomState(1234)):
-
+        '''
+        n_in              : number of input nodes
+        n_out             : number of output nodes
+        layers            : List of LayerData objects specifying hidden layers to the neural net
+        output_layer_args : List of arguments to construct the output layer
+        error_fn          : Function that accepts output and y returns a theano expression for the error function
+        L1_reg            : L1 regularization constant
+        L2_reg            : L2 regularization constant
+        input             : Specify input to chain another function or model
+        inputx            : Specify input variable for input
+        output            : Specify output variable
+        rng               : Random number generator
+        '''
+        
         # Initialize variables
         self.x = (inputx if inputx is not None
                   else T.matrix('x'))
@@ -81,6 +113,9 @@ class NeuralNet:
         self.predict = None
 
     def init_layers(self, layers, n_in, n_out, output_layer_args):
+        '''
+        Initializes the neural network's layers
+        '''
         L1 = 0
         L2_sqr = 0
 
@@ -124,7 +159,11 @@ class NeuralNet:
         
         self.L1 = L1 + T.sum( abs( self.output_layer.W ))
         self.L2_sqr = L2_sqr + T.sum( self.output_layer.W ** 2 )
+        
     def validation_error(self, x_valid, y_valid):
+        '''
+        Needs to be implemented in any class that extends NeuralNet
+        '''
         assert False
 
         
